@@ -7,6 +7,8 @@ machine:
     version: 4.0.0
 dependencies:
   post:
+    # Load previous build (saves time)
+    - docker pull interledger/five-bells-ledger:latest || true
     # Build container
     - docker build -t interledger/five-bells-ledger .
 test:
