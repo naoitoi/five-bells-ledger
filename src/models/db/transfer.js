@@ -100,11 +100,11 @@ PersistentModelMixin(Transfer, sequelize, {
   rejection_reason: Sequelize.ENUM('expired', 'cancelled'),
   execution_condition: JsonField(sequelize, 'Transfer', 'execution_condition'),
   cancellation_condition: JsonField(sequelize, 'Transfer', 'cancellation_condition'),
-  expires_at: Sequelize.DATE,
-  proposed_at: Sequelize.DATE,
-  prepared_at: Sequelize.DATE,
-  executed_at: Sequelize.DATE,
-  rejected_at: Sequelize.DATE
+  expires_at: Sequelize.DATE(3),
+  proposed_at: Sequelize.DATE(3),
+  prepared_at: Sequelize.DATE(3),
+  executed_at: Sequelize.DATE(3),
+  rejected_at: Sequelize.DATE(3)
 })
 
 exports.Transfer = Transfer
