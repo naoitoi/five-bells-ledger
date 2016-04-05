@@ -57,6 +57,7 @@ const InvalidUriParameterError = require('five-bells-shared/errors/invalid-uri-p
 function * getResource () {
   const id = this.params.id
   requestUtil.validateUriParameter('id', id, 'Uuid')
+  log.debug('getTransfer 5')
   this.body = yield model.getTransfer(id.toLowerCase())
 }
 

@@ -28,6 +28,7 @@ const UnauthorizedError =
 require('five-bells-shared/errors/unauthorized-error')
 const Condition = require('five-bells-condition').Condition
 const transferDictionary = require('five-bells-shared').TransferStateDictionary
+const dbcache = require('../lib/dbcache')
 
 const transferStates = transferDictionary.transferStates
 const validExecutionStates = transferDictionary.validExecutionStates
@@ -39,6 +40,7 @@ const RECEIPT_TYPE_SHA256 = 'sha256'
 function * getTransfer (id) {
   log.debug('fetching transfer ID ' + id)
 
+  log.debug('getTransfer 2')
   let transfer = yield db.getTransfer(id)
   if (!transfer) {
     throw new NotFoundError('Unknown transfer ID')
@@ -49,6 +51,7 @@ function * getTransfer (id) {
 
 function * getTransferStateReceipt (id, receiptType, conditionState) {
   log.debug('fetching state receipt for transfer ID ' + id)
+  log.debug('getTransfer 3')
   const transfer = yield db.getTransfer(id)
   const transferState = transfer ? transfer.state : transferStates.TRANSFER_STATE_NONEXISTENT
 
@@ -308,6 +311,7 @@ function * executeTransfer (transaction, transfer, fulfillment) {
 
 function * fulfillTransfer (transferId, fulfillment) {
   const existingFulfillment = yield db.transaction(function * (transaction) {
+    log.debug('getTransfer 4')
     const transfer = yield db.getTransfer(transferId, {transaction})
 
     if (!transfer) {
@@ -384,6 +388,7 @@ function * setTransfer (transfer, requestingUser) {
 
   let originalTransfer, previousDebits, previousCredits
   yield db.transaction(function * (transaction) {
+    log.debug('getTransfer 1')
     originalTransfer = yield db.getTransfer(transfer.id, {transaction})
     if (originalTransfer) {
       log.debug('found an existing transfer with this ID')
@@ -393,6 +398,8 @@ function * setTransfer (transfer, requestingUser) {
       // This method will update the original transfer object using the new
       // version, but only allowing specific fields to change.
       transfer = updateTransferObject(originalTransfer, transfer)
+      // add this transfer to DB cache
+      dbcache.transfers[transfer.id] = transfer
     } else {
       yield validateNoDisabledAccounts(transaction, transfer)
       // A brand-new transfer will start out as proposed

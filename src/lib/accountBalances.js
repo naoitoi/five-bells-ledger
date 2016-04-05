@@ -6,6 +6,7 @@ const InsufficientFundsError = require('../errors/insufficient-funds-error')
 const log = require('../services/log')('account balances')
 const Account = require('../models/db/account').Account
 const Bignumber = require('bignumber.js')
+const dbcache = require('./dbcache')
 
 function AccountBalances (transaction, transfer) {
   this.transaction = transaction
@@ -44,8 +45,17 @@ AccountBalances.prototype._getAccountBalances = function * (creditsOrDebits) {
 
   for (let account of Object.keys(accounts)) {
     const amounts = _.pluck(accounts[account], 'amount')
-    const accountObj = yield Account.findByName(account, { transaction: this.transaction })
-
+    let accountObj
+    log.debug('Looking up account: ' + account)
+    if (dbcache.accounts && dbcache.accounts[account]) {
+      log.debug('Cache hit!')
+      accountObj = dbcache.accounts[account]
+    } else {
+      log.debug('Cache miss')
+      accountObj = yield Account.findByName(account, { transaction: this.transaction })
+      dbcache.accounts[account] = accountObj
+    }
+    
     if (accountObj === null) {
       throw new UnprocessableEntityError(
         'Account `' + account + '` does not exist.')
@@ -75,7 +85,15 @@ AccountBalances.prototype._applyDebits = function * (accounts) {
     }
 
     // Take money out of senders' accounts
-    const account = yield Account.findByName(sender, { transaction })
+    let account
+    if (dbcache.accounts && dbcache.accounts[sender]) {
+      log.debug('Cache hit sender: ' + sender)
+      account = dbcache.accounts[sender]
+    } else {
+      log.debug('Cache miss sender: ' + sender)
+      account = yield Account.findByName(sender, { transaction })
+      dbcache.accounts[sender] = account
+    }
     log.debug('sender ' + sender + ' balance: ' + account.balance +
       ' -> ' + (difference([account.balance, debitAccount.totalAmount])))
     account.balance = difference([account.balance, debitAccount.totalAmount])
@@ -92,7 +110,15 @@ AccountBalances.prototype._applyCredits = function * (accounts) {
   for (let recipient of Object.keys(accounts)) {
     const creditAccount = accounts[recipient]
 
-    const account = yield Account.findByName(recipient, { transaction })
+    let account
+    if (dbcache.accounts[recipient]) {
+      log.debug('Cache hit recipient: ' + recipient)
+      account = dbcache.accounts[recipient]
+    } else {
+      log.debug('Cache miss recipient: ' + recipient)
+      account = yield Account.findByName(recipient, { transaction })
+      dbcache.accounts[recipient] = account
+    }
     log.debug('recipient ' + recipient + ' balance: ' + account.balance +
       ' -> ' + sum([account.balance, creditAccount.totalAmount]))
     account.balance = sum([account.balance, creditAccount.totalAmount])
@@ -110,7 +136,16 @@ AccountBalances.prototype._saveAccount = function * (account) {
 }
 
 AccountBalances.prototype._holdAccount = function * () {
-  const holdAccount = yield Account.findByName('hold', {transaction: this.transaction})
+  let holdAccount
+    if (dbcache.accounts['hold']) {
+      log.debug('Cache hit hold')
+      holdAccount = dbcache.accounts['hold']
+    } else {
+      log.debug('Cache miss hold')
+      holdAccount = yield Account.findByName('hold', { transaction: this.transaction })
+      dbcache.accounts['hold'] = holdAccount
+    }
+  //const holdAccount = yield Account.findByName('hold', {transaction: this.transaction})
   if (!holdAccount) {
     throw new Error('Missing "hold" account')
   }

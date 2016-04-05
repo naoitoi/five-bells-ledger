@@ -10,6 +10,7 @@ module.exports = function * (config) {
 }
 
 function * setupHoldAccount () {
+  console.log('findByName 3: hold')
   const holdAccount = yield models.Account.findByName('hold')
   if (!holdAccount) {
     yield models.Account.create({name: 'hold', minimum_allowed_balance: '0', balance: '0'})
@@ -18,6 +19,7 @@ function * setupHoldAccount () {
 
 // adminParams - {user, pass, fingerprint}
 function * setupAdminAccount (adminParams) {
+  console.log('findByName 4: ' + adminParams.user)
   const adminAccount = yield models.Account.findByName(adminParams.user)
   const passwordHash =
     adminParams.pass ? yield hashPassword(adminParams.pass) : undefined

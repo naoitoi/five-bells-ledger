@@ -4,6 +4,7 @@ const _ = require('lodash')
 const assert = require('assert')
 const db = require('../../services/db')
 const Transfer = require('./transfer').Transfer
+const dbcache = require('../../lib/dbcache')
 
 function * getTransfer (id, options) {
   return yield Transfer.findById(id, options)
@@ -14,7 +15,8 @@ function * _upsertTransfer (transfer, options) {
   // SQLite's implementation of upsert does not tell you whether it created the
   // row or whether it already existed. Since we need to know to return the
   // correct HTTP status code we unfortunately have to do this in two steps.
-  const existingTransfer = yield Transfer.findById(transfer.id, options)
+  let existingTransfer = dbcache.transfers[transfer.id]
+  if (!existingTransfer) existingTransfer = yield Transfer.findById(transfer.id, options)
   if (existingTransfer) {
     existingTransfer.setData(transfer)
     yield existingTransfer.save(options)

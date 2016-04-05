@@ -9,6 +9,47 @@ const transferStates = transferDictionary.transferStates
 const knex = require('./knex').knex
 const uuid4 = require('uuid4')
 
+function * findOrCreateMulti (Notification, subscriptionIDs, transferID, transaction) {
+  // look up existing notifications for the given transfer ID and subscription IDs
+  const notifications = yield transaction.whereIn('subscription_id', subscriptionIDs).andWhere({transfer_id: transferID}).from(Notification.tableName)
+  console.log('Found notificaions: ' + JSON.stringify(notifications, null, 2))
+  
+  // check if all subscriptions had notifications
+  let subscriptionsToAdd = []
+
+  for (let subscriptionID of subscriptionIDs)
+  {
+    // see if subscription ID was in notifications
+    if (_.some(notifications, {'subscription_id': subscriptionID})) {
+      console.log('subscription ' + subscriptionID + ' exists.  Do not add it to the list')
+      continue
+    }
+    // subscription ID is not in notifications
+    console.log('subscription ' + subscriptionID + ' does not exist.  Add it to the list')
+    subscriptionsToAdd.push(subscriptionID)
+  }
+
+  if (subscriptionsToAdd.length === 0) {
+    // nothing more to query
+    return notifications
+  }
+
+  console.log('TODO: will create notifications for subscriptions: ' + JSON.stringify(subscriptionsToAdd, null, 2))
+  let notificationsToAdd = []
+  for (let subscrID of subscriptionsToAdd) {
+    notificationsToAdd.push({
+      'id': uuid4(),
+      'subscription_id': subscrID,
+      'transfer_id': transferID,
+      'retry_count': null,
+      'retry_at': null
+    })
+  }
+  yield transaction.insert(notificationsToAdd).into(Notification.tableName)
+  
+  return notificationsToAdd
+}
+
 function * findOrCreate (Notification, data) {
   const options = {transaction: data.transaction}
   const result = yield Notification.findWhere(data.where, options)
@@ -20,7 +61,11 @@ function * findOrCreate (Notification, data) {
     values.id = uuid4()
   }
   yield Notification.create(values, options)
-  return yield Notification.findWhere(data.where, options)
+  
+  values.retry_count = null
+  values.retry_at = null
+  const values3 = [ values ]
+  return values3
 }
 
 class NotificationWorker {
@@ -61,7 +106,7 @@ class NotificationWorker {
     // log.debug('notifying ' + subscription.owner + ' at ' +
     //   subscription.target)
     const self = this
-    const notifications = yield subscriptions.map(function (subscription) {
+    /*const notifications = yield subscriptions.map(function (subscription) {
       return findOrCreate(self.Notification, {
         where: {
           subscription_id: subscription.id,
@@ -71,14 +116,20 @@ class NotificationWorker {
       })
     })
 
+    console.log('notifications returned by findOrCreate:  ' + JSON.stringify(notifications))*/
+    const subscriptionIDs = subscriptions.map(subscription => subscription.id)
+    console.log('Subscriptions to notify: ' + JSON.stringify(subscriptionIDs))
+    const notifications2 = yield findOrCreateMulti(self.Notification, subscriptionIDs, transfer.id, transaction)
+    console.log('notifications returned by findOrCreateM: ' + JSON.stringify(notifications2))
+    
     // We will schedule an immediate attempt to send the notification for
     // performance in the good case.
     // Don't schedule the immediate attempt if the worker isn't active, though.
     if (!this.scheduler.isEnabled()) return
     co(function * () {
-      yield notifications.map(function (notification_and_created, i) {
-        const notification = self.Notification.fromDatabaseModel(notification_and_created[0])
-        return self.processNotificationWithInstances(notification, transfer, subscriptions[i], fulfillment)
+      yield notifications2.map(function (notification_and_created, i) {
+        const notification = self.Notification.fromDatabaseModel(notification_and_created)
+        return self.processNotificationWithInstances(notification, transfer, subscriptions[i], fulfillment, transaction)
       })
       // Schedule any retries.
       yield self.scheduler.scheduleProcessing()
@@ -95,7 +146,7 @@ class NotificationWorker {
     yield this.processNotificationWithInstances(notification, transfer, subscription, fulfillment)
   }
 
-  * processNotificationWithInstances (notification, transfer, subscription, fulfillment) {
+  * processNotificationWithInstances (notification, transfer, subscription, fulfillment, transaction) {
     this.log.debug('sending notification to ' + subscription.target)
     const subscriptionURI = this.uri.make('subscription', subscription.id)
     const notificationBody = {
@@ -134,7 +185,7 @@ class NotificationWorker {
     if (retry) {
       yield this.scheduler.retryNotification(notification)
     } else {
-      yield notification.destroy()
+      yield notification.destroy({transaction})
     }
   }
 }

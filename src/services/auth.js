@@ -9,6 +9,7 @@ const AnonymousStrategy = require('passport-anonymous').Strategy
 const Account = require('../models/db/account').Account
 const UnauthorizedError = require('five-bells-shared/errors/unauthorized-error')
 const config = require('./config')
+const dbcache = require('../lib/dbcache')
 
 passport.use(new BasicStrategy(
   function (username, password, done) {
@@ -21,7 +22,7 @@ passport.use(new BasicStrategy(
     if (!username) {
       return done(null, false)
     }
-
+    console.log('findByName 1: ' + username)
     Account.findByName(username)
       .then(function (userObj) {
         if (!userObj || userObj.is_disabled || !userObj.password_hash) {
@@ -42,7 +43,7 @@ passport.use(new HTTPSignatureStrategy(
     if (!config.getIn(['auth', 'http_signature_enabled'])) {
       return done(new UnauthorizedError('Unsupported authentication method'))
     }
-
+    console.log('findByName 2: ' + username)
     Account.findByName(username)
       .then(function (userObj) {
         if (!userObj || userObj.is_disabled) {
