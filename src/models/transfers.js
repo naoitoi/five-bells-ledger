@@ -29,6 +29,7 @@ require('five-bells-shared/errors/unauthorized-error')
 const Condition = require('five-bells-condition').Condition
 const transferDictionary = require('five-bells-shared').TransferStateDictionary
 const dbcache = require('../lib/dbcache')
+const Account = require('./db/account').Account
 
 const transferStates = transferDictionary.transferStates
 const validExecutionStates = transferDictionary.validExecutionStates
@@ -401,6 +402,25 @@ function * setTransfer (transfer, requestingUser) {
       // add this transfer to DB cache
       dbcache.transfers[transfer.id] = transfer
     } else {
+      // Read sender, receiver, hold accounts into cache
+      // Do this in one SQL query for performance and scalability.
+      let accounts = _.uniq(_.map(transfer.debits.concat(transfer.credits), (creditOrDebit) => {
+        return creditOrDebit.account
+      }))
+      accounts.push('hold')
+      
+      //log.debug('Will read accounts into cache: ' + JSON.stringify(accounts, null, 2))
+      const readAccounts = yield transaction.from('accounts').whereIn('name', accounts)
+      log.debug('Will read accounts into cache: ' + JSON.stringify(readAccounts, null, 2))
+      for (let account of accounts) {
+        dbcache.accounts[account] = null
+        const accountObj = _.find(readAccounts, {'name': account})
+        if (accountObj) {
+          dbcache.accounts[account] = Account.fromDatabaseModel(accountObj)
+          log.debug('Set cache of ' + account + ' to: ' + JSON.stringify(accountObj))
+        }
+      }
+      
       yield validateNoDisabledAccounts(transaction, transfer)
       // A brand-new transfer will start out as proposed
       updateState(transfer, transferStates.TRANSFER_STATE_PROPOSED)

@@ -29,6 +29,7 @@ class TransferExpiryMonitor {
     const _this = this
 
     yield db.transaction(function * (transaction) {
+      console.log('Transfer.findById 2')
       let transfer = yield Transfer.findById(transferId, { transaction })
 
       if (!transfer) {

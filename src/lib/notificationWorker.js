@@ -93,6 +93,7 @@ class NotificationWorker {
 
   * processNotification (notification) {
     notification = this.Notification.fromData(notification)
+    console.log('Transfer.findById 1')
     const transfer = yield this.Transfer.findById(notification.transfer_id)
     const subscription = yield this.Subscription.findById(notification.subscription_id)
     const fulfillment = yield this.Fulfillment.findByTransfer(transfer.id)

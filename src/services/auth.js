@@ -23,6 +23,9 @@ passport.use(new BasicStrategy(
       return done(null, false)
     }
     console.log('findByName 1: ' + username)
+    const inCache = dbcache.accounts[username]
+    if (inCache)
+      return done(null, inCache)
     Account.findByName(username)
       .then(function (userObj) {
         if (!userObj || userObj.is_disabled || !userObj.password_hash) {
@@ -62,12 +65,17 @@ passport.use(new ClientCertStrategy((certificate, done) => {
   }
 
   const fingerprint = certificate.fingerprint.toUpperCase()
+
+  const inCache = dbcache.accountsByFingerprint[fingerprint]
+  if (inCache)
+    return done(null, inCache)
   Account.findByFingerprint(fingerprint)
     .then(function (userObj) {
       if (!userObj || userObj.is_disabled || !userObj.fingerprint ||
           userObj.fingerprint !== fingerprint) {
         return done(new UnauthorizedError('Unknown or invalid account'))
       }
+      dbcache.accountsByFingerprint[fingerprint] = userObj
       done(null, userObj)
     })
 }))

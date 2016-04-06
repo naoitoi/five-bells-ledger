@@ -30,6 +30,7 @@ function * getNotification (subscriptionId, notificationId, requestingUser) {
   } else if (!subscriptionUtils.isOwnerOrAdmin(requestingUser, subscription)) {
     throw new UnauthorizedError('You do not own this subscription')
   } else {
+    console.log('Transfer.findById 3')
     const transfer = yield Transfer.findById(notification.transfer_id)
     const fulfillment = yield Fulfillment.findByTransfer(transfer.id)
     const subscriptionURI = uri.make('subscription', subscription.id)

@@ -14,7 +14,9 @@ function * validateNoDisabledAccounts (transaction, transfer) {
 
   for (const account of accounts) {
     log.debug('Read account: ' + account)
-    const accountObj = yield Account.findByName(account, { transaction: transaction })
+    const accountObj = dbcache.accounts[account]
+    // yield Account.findByName(account, { transaction: transaction })
+    // TODO: maybe read accounts if cache miss
     if (accountObj === null) {
       throw new UnprocessableEntityError('Account `' + account + '` does not exist.')
     }
@@ -22,8 +24,8 @@ function * validateNoDisabledAccounts (transaction, transfer) {
       throw new UnprocessableEntityError('Account `' + account + '` is disabled.')
     }
     // Cache account object
-    log.debug('disabledAccounts read account into dbcache: ' + JSON.stringify(accountObj))
-    dbcache.accounts[account] = accountObj
+    //log.debug('disabledAccounts read account into dbcache: ' + JSON.stringify(accountObj))
+    //dbcache.accounts[account] = accountObj
   }
 }
 
